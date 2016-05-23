@@ -1,0 +1,176 @@
+ /*
+  */
+
+#include <slsimlib.h>
+#include <sstream>
+#include <iomanip>
+#include <omp.h>
+#include <thread>
+#include <mutex>
+
+using namespace std;
+
+int main(int arg,char **argv){
+  
+  COSMOLOGY cosmo(Planck1yr);
+  Point_2d rotation_vector;
+  PosType zl=0.5;
+  rotation_vector *= 0;
+  int Nsmooth = 64; // number of neighbors for smoothing scale
+
+  LensHaloParticles phalo("particles.dm.txt",zl,Nsmooth,cosmo,rotation_vector, true, true);
+
+  
+  long seed = -28976391;
+  /**********************************************************/
+  // read in parameter from the parameter file
+  InputParams params("param_example");
+  Lens lens(params,&seed);
+  
+  // replaces object put in from parameter file
+  lens.replaceMainHalos(&phalo);
+  
+  Point_2d center;
+  PosType Dl = cosmo.angDist(zl);
+  center[0]= 0.5/Dl;
+  center[1]= 0.5/Dl;
+  center *= 0;
+  
+  // rotate the simulation
+  Point_2d theta(pi/2,pi/5);
+  phalo.rotate(theta);
+
+  double range = 0.87*pi/180/10; // range of grids in radians
+  Grid grid(&lens,512,center.x,range/2);
+
+  // set the redshift of the source plane
+  lens.ResetSourcePlane(3,false);
+  
+  // output some maps
+  grid.writeFits(1.0,KAPPA,"!particles");
+  grid.writeFits(1.0,INVMAG,"!particles");
+  
+  // find the critical curves
+  std::vector<ImageFinding::CriticalCurve> crit_curve;
+  int Ncriticals;
+  ImageFinding::find_crit(&lens,&grid,crit_curve,&Ncriticals,0.01*arcsecTOradians);
+  
+  
+  //*** plot caustic curves
+  
+  if(crit_curve.size() > 0){
+    Point_2d p1,p2;
+    Point_2d tp1,tp2;
+    
+    //*** find good boundaries for plot
+    for(int i=0;i<crit_curve.size();++i){
+      crit_curve[i].CausticRange(tp1,tp2);
+      if(p1[0] > tp1[0]) p1[0] = tp1[0];
+      if(p1[1] > tp1[1]) p1[1] = tp1[1];
+      
+      if(p2[0] < tp2[0]) p2[0] = tp2[0];
+      if(p2[1] < tp2[1]) p2[1] = tp2[1];
+      
+    }
+    Point_2d center = (p1+p2)/2;
+    PixelMap map(center.x,512*2,1.1*MAX(p2[0]-p1[0],p2[1]-p1[1])/512/2);
+    
+    for(int i=0;i<crit_curve.size();++i){
+      map.AddCurve(crit_curve[i].caustic_curve_outline, crit_curve[i].type);
+      //map.AddCurve(critcurve[i].caustic_curve_intersecting, critcurve[i].type+2);
+    }
+    map.printFITS("!caustics.fits");
+  }
+  
+  //*** plot critical curves
+  
+  double crit_range=0;
+  if(crit_curve.size() > 0){
+    Point_2d p1,p2;
+    Point_2d tp1,tp2;
+    for(int i=0;i<crit_curve.size();++i){
+      crit_curve[i].CritRange(tp1,tp2);
+      if(p1[0] > tp1[0]) p1[0] = tp1[0];
+      if(p1[1] > tp1[1]) p1[1] = tp1[1];
+      
+      if(p2[0] < tp2[0]) p2[0] = tp2[0];
+      if(p2[1] < tp2[1]) p2[1] = tp2[1];
+      
+    }
+    Point_2d center = (p1+p2)/2;
+    crit_range = 1.1*MAX(p2[0]-p1[0],p2[1]-p1[1]);
+    PixelMap map(center.x,512,crit_range/512);
+    
+    for(int i=0;i<crit_curve.size();++i)
+      map.AddCurve(crit_curve[i].critical_curve, crit_curve[i].type);
+    
+    map.printFITS("!critical.fits");
+  }
+  
+  std::cout << "Number of caustics : "<< crit_curve.size() << std::endl;
+  
+  if(crit_curve.size() == 0){
+    cout << "Exiting" << endl;
+    exit(1);
+  }
+  
+  //*** print information about the critical curves that were found
+  PosType rmax,rmin,rave;
+  if(crit_curve.size() > 0){
+    std::string type;
+    for(int i=0;i<crit_curve.size();++i){
+      type = to_string( crit_curve[i].type );
+      std::cout << "  " << i << " type " << to_string(crit_curve[i].type) << std::endl;
+      crit_curve[i].CausticRadius(rmax,rmin,rave);
+      std::cout << "      caustic " << crit_curve[i].caustic_center << " | " << crit_curve[i].caustic_area << " " << rmax << " " << rmin << " " << rave << std::endl;
+      crit_curve[i].CriticalRadius(rmax,rmin,rave);
+      std::cout << "      critical " << crit_curve[i].critical_center << " | " << crit_curve[i].critical_area << " " << rmax << " " << rmin << " " << rave << std::endl;
+    }
+  }
+  
+  //**** put a source in and map its images
+  //****************************************
+  
+  //*** find a source position within the tangential caustic
+  Utilities::RandomNumbers_NR random(seed);   //*** random number generator
+  std::vector<Point_2d> y;                    //*** vector for source positions
+  crit_curve[0].RandomSourceWithinCaustic(1,y,random); //*** get random points within first caustic
+  
+  PosType zs = 2; //** redshift of source
+  //** make a Sersic source, there are a number of other ones that could be used
+  SourceSersic source(23,0.02,0,1,0.5,zs,y[0].x);
+  
+  /** reset the source plane in the lens from the one given in the
+   parameter file to this source's redshift
+   */
+  lens.ResetSourcePlane(zs,false);
+  
+  std::vector<ImageInfo> imageinfo;
+  int Nimages;
+  
+  PixelMap map(center.x,512,crit_range/512);
+  
+  // source.setIndex(100);
+  
+  std::cout << "Mapping source ..." << std::endl;
+  
+  /*** there are two different ways to map the images
+   ImageFinding::map_images() will adapt the grid to make the image smooth
+   ImageFinding::map_images_fixedgrid() will use the grid as is without further ray shooting
+   */
+  ImageFinding::map_images(&lens,&source,&grid,&Nimages,imageinfo,source.getRadius()
+                           ,source.getRadius()/100,0,EachImage,false,true);
+  
+  //ImageFinding::map_images_fixedgrid(&source,&grid,&Nimages,imageinfo
+  //,source.getRadius(),true,true);
+  
+  //*** add sources images to the plot.
+  map.AddImages(imageinfo,Nimages);
+  
+  map.printFITS("!image.fits");
+  
+  params.print_unused();
+  
+  return 0;
+}
+
