@@ -8,27 +8,56 @@
 #include <thread>
 #include <mutex>
 
+#include "particle_halo.h"
+
 using namespace std;
+
+// just to make this shorter to write
+using LensHP = LensHaloParticles<ParticleType<float> >;
 
 int main(int arg,char **argv){
   
   COSMOLOGY cosmo(Planck1yr);
   Point_2d rotation_vector;
-  PosType zl=0.5;
+  PosType zl=0.2;           // redshift of lens
+  PosType z_source=2.0;           // redshift of lens
   rotation_vector *= 0;
   int Nsmooth = 64; // number of neighbors for smoothing scale
 
-  LensHaloParticles phalo("particles.dm.txt",zl,Nsmooth,cosmo,rotation_vector, true, true);
+  //LensHaloParticles phalo("particles.dm.txt",zl,Nsmooth,cosmo,rotation_vector, true, true);
 
   
   long seed = -28976391;
   /**********************************************************/
   // read in parameter from the parameter file
-  InputParams params("param_example");
-  Lens lens(params,&seed);
+  //InputParams params("param_example");
+  //Lens lens(params,&seed);
   
-  // replaces object put in from parameter file
-  lens.replaceMainHalos(&phalo);
+  Lens lens(&seed,z_source,cosmo);
+
+
+  {
+
+    Point_2d theta(PI/2,PI/5);
+    LensHP halo("particles.dm.txt",ascii,zl, Nsmooth, cosmo, theta, true, true,0);
+    
+  
+    // read in particles
+    //MakeParticleLenses halomaker("particles.dm.txt",ascii,Nsmooth,true);
+    //halomaker.CreateHalos(cosmo,zl);
+    
+    // insert halos into lens
+    //  There is a seporate halo for each type of particle
+    
+    lens.moveinMainHalo(halo, true);  // this is moved instead of inserted to avoid a copy
+    
+  }
+
+  // rotate halos
+  // rotate the simulation
+  //for(int i=0 ; i < lens.getNMainHalos<LensHP>()  ; ++i){
+  //  lens.getMainHalo<LensHP>(i)->rotate(theta);
+  //}
   
   Point_2d center;
   PosType Dl = cosmo.angDist(zl);
@@ -36,11 +65,8 @@ int main(int arg,char **argv){
   center[1]= 0.5/Dl;
   center *= 0;
   
-  // rotate the simulation
-  Point_2d theta(pi/2,pi/5);
-  phalo.rotate(theta);
-
-  double range = 0.87*pi/180/10; // range of grids in radians
+ 
+  double range = 0.87*PI/180/10; // range of grids in radians
   Grid grid(&lens,512,center.x,range/2);
 
   // set the redshift of the source plane
@@ -169,7 +195,7 @@ int main(int arg,char **argv){
   
   map.printFITS("!image.fits");
   
-  params.print_unused();
+//  params.print_unused();
   
   return 0;
 }
