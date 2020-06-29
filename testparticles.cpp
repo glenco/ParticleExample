@@ -18,59 +18,55 @@ using LensHP = LensHaloParticles<ParticleType<float> >;
 int main(int arg,char **argv){
   
   COSMOLOGY cosmo(Planck1yr);
-  Point_2d rotation_vector;
-  PosType zl=0.2;           // redshift of lens
-  PosType z_source=2.0;           // redshift of lens
-  rotation_vector *= 0;
-  int Nsmooth = 64; // number of neighbors for smoothing scale
+  Point_2d rotation_vector(0,0);
+  PosType zl=0.4;           // redshift of lens
+  PosType z_source = 2.0;           // redshift of lens
+  int Nsmooth = 16; // number of neighbors for smoothing scale
 
   //LensHaloParticles phalo("particles.dm.txt",zl,Nsmooth,cosmo,rotation_vector, true, true);
-
   
   long seed = -28976391;
   /**********************************************************/
-  // read in parameter from the parameter file
-  //InputParams params("param_example");
-  //Lens lens(params,&seed);
-  
+   
   Lens lens(&seed,z_source,cosmo);
 
-
+  Point_3d center;
   {
-
-    Point_2d theta(PI/2,PI/5);
-    LensHP halo("particles.dm.txt",ascii,zl, Nsmooth, cosmo, theta, true, true,0);
-    
-  
-    // read in particles
-    //MakeParticleLenses halomaker("particles.dm.txt",ascii,Nsmooth,true);
-    //halomaker.CreateHalos(cosmo,zl);
+      // rotation of the halo about its center of mass
+    rotation_vector[0] = PI/2;
+    rotation_vector[1] = PI/5;
+    LensHP halo("particles.dm.txt",ascii,zl, Nsmooth, cosmo,
+                rotation_vector, true, true,0,5.0);
     
     // insert halos into lens
-    //  There is a seporate halo for each type of particle
+     // this is moved instead of inserted to avoid a copy
+    lens.moveinMainHalo(halo, true);
     
-    lens.moveinMainHalo(halo, true);  // this is moved instead of inserted to avoid a copy
-    
+    // Another way of creating particle halos that is more flexible with
+    // more file types is commented out here.
+//    MakeParticleLenses halomaker("particles.dm.txt",ascii,Nsmooth,true);
+//    halomaker.CreateHalos(cosmo,zl);
+//    //  There is a seporate halo for each type of particle
+//    for(auto h : halomaker.halos){
+//       lens.insertMainHalo(h,zl, true);
+//    }
+//
   }
 
-  // rotate halos
-  // rotate the simulation
+  // here you can rotate each simulation independently
   //for(int i=0 ; i < lens.getNMainHalos<LensHP>()  ; ++i){
   //  lens.getMainHalo<LensHP>(i)->rotate(theta);
   //}
   
-  Point_2d center;
-  PosType Dl = cosmo.angDist(zl);
-  center[0]= 0.5/Dl;
-  center[1]= 0.5/Dl;
-  center *= 0;
-  
+  //PosType Dl = cosmo.angDist(zl);
+  //center /= Dl;
+  //center *= 0;
  
   double range = 0.87*PI/180/10; // range of grids in radians
   Grid grid(&lens,512,center.x,range/2);
 
   // set the redshift of the source plane
-  lens.ResetSourcePlane(3,false);
+  lens.ResetSourcePlane(z_source,false);
   
   // output some maps
   grid.writeFits(1.0,KAPPA,"!particles");
@@ -83,7 +79,6 @@ int main(int arg,char **argv){
   
   
   //*** plot caustic curves
-  
   if(crit_curve.size() > 0){
     Point_2d p1,p2;
     Point_2d tp1,tp2;
@@ -98,7 +93,7 @@ int main(int arg,char **argv){
       if(p2[1] < tp2[1]) p2[1] = tp2[1];
       
     }
-    Point_2d center = (p1+p2)/2;
+    Point_2d center = crit_curve[0].caustic_center;
     PixelMap map(center.x,512*2,1.1*MAX(p2[0]-p1[0],p2[1]-p1[1])/512/2);
     
     for(int i=0;i<crit_curve.size();++i){
@@ -123,7 +118,7 @@ int main(int arg,char **argv){
       if(p2[1] < tp2[1]) p2[1] = tp2[1];
       
     }
-    Point_2d center = (p1+p2)/2;
+    Point_2d center = crit_curve[0].critical_center;
     crit_range = 1.1*MAX(p2[0]-p1[0],p2[1]-p1[1]);
     PixelMap map(center.x,512,crit_range/512);
     
@@ -174,7 +169,8 @@ int main(int arg,char **argv){
   std::vector<ImageInfo> imageinfo;
   int Nimages;
   
-  PixelMap map(center.x,512,crit_range/512);
+  Point_2d crit_center = crit_curve[0].critical_center;
+  PixelMap map(crit_center.x,512,crit_range/512);
   
   // source.setIndex(100);
   
@@ -184,7 +180,8 @@ int main(int arg,char **argv){
    ImageFinding::map_images() will adapt the grid to make the image smooth
    ImageFinding::map_images_fixedgrid() will use the grid as is without further ray shooting
    */
-  ImageFinding::map_images(&lens,&source,&grid,&Nimages,imageinfo,source.getRadius()
+  ImageFinding::map_images(&lens,&source,&grid,&Nimages,imageinfo
+                           ,source.getRadius()
                            ,source.getRadius()/100,0,EachImage,false,true);
   
   //ImageFinding::map_images_fixedgrid(&source,&grid,&Nimages,imageinfo
