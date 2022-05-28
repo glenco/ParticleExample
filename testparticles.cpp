@@ -17,7 +17,7 @@ using LensHP = LensHaloParticles<ParticleType<float> >;
 
 int main(int arg,char **argv){
   
-  COSMOLOGY cosmo(Planck1yr);
+  COSMOLOGY cosmo(CosmoParamSet::Planck1yr);
   Point_2d rotation_vector(0,0);
   PosType zl=0.4;           // redshift of lens
   PosType z_source = 2.0;           // redshift of lens
@@ -30,13 +30,14 @@ int main(int arg,char **argv){
    
   Lens lens(&seed,z_source,cosmo);
 
-  Point_3d center;
+  Point_3d<double> center;
   {
       // rotation of the halo about its center of mass
     rotation_vector[0] = PI/2;
     rotation_vector[1] = PI/5;
-    LensHP halo("particles.dm.txt",ascii,zl, Nsmooth, cosmo,
-                rotation_vector, true, true,0,5.0);
+
+    LensHaloParticles<ParticleType<float> > halo("particles.dm.txt",SimFileFormat::ascii,zl, Nsmooth, cosmo,
+                                                 rotation_vector, true, true,0,5.0);
     
     // insert halos into lens
      // this is moved instead of inserted to avoid a copy
@@ -69,8 +70,8 @@ int main(int arg,char **argv){
   lens.ResetSourcePlane(z_source,false);
   
   // output some maps
-  grid.writeFits(1.0,KAPPA,"!particles");
-  grid.writeFits(1.0,INVMAG,"!particles");
+  grid.writeFits(1.0,LensingVariable::KAPPA,"!particles");
+  grid.writeFits(1.0,LensingVariable::INVMAG,"!particles");
   
   // find the critical curves
   std::vector<ImageFinding::CriticalCurve> crit_curve;
@@ -97,7 +98,7 @@ int main(int arg,char **argv){
     PixelMap map(center.x,512*2,1.1*MAX(p2[0]-p1[0],p2[1]-p1[1])/512/2);
     
     for(int i=0;i<crit_curve.size();++i){
-      map.AddCurve(crit_curve[i].caustic_curve_outline, crit_curve[i].type);
+      map.AddCurve(crit_curve[i].caustic_curve_outline, i);
       //map.AddCurve(critcurve[i].caustic_curve_intersecting, critcurve[i].type+2);
     }
     map.printFITS("!caustics.fits");
@@ -123,7 +124,7 @@ int main(int arg,char **argv){
     PixelMap map(center.x,512,crit_range/512);
     
     for(int i=0;i<crit_curve.size();++i)
-      map.AddCurve(crit_curve[i].critical_curve, crit_curve[i].type);
+      map.AddCurve(crit_curve[i].critical_curve,i);
     
     map.printFITS("!critical.fits");
   }
@@ -159,7 +160,8 @@ int main(int arg,char **argv){
   
   PosType zs = 2; //** redshift of source
   //** make a Sersic source, there are a number of other ones that could be used
-  SourceSersic source(23,0.02,0,1,0.5,zs,y[0].x);
+  SourceSersic source(23,0.02,0,1,0.5,zs);
+  source.setTheta(y[0]);
   
   /** reset the source plane in the lens from the one given in the
    parameter file to this source's redshift
@@ -182,7 +184,7 @@ int main(int arg,char **argv){
    */
   ImageFinding::map_images(&lens,&source,&grid,&Nimages,imageinfo
                            ,source.getRadius()
-                           ,source.getRadius()/100,0,EachImage,false,true);
+                           ,source.getRadius()/100,0,ExitCriterion::EachImage,false,true);
   
   //ImageFinding::map_images_fixedgrid(&source,&grid,&Nimages,imageinfo
   //,source.getRadius(),true,true);
