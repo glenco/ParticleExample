@@ -12,9 +12,6 @@
 
 using namespace std;
 
-// just to make this shorter to write
-using LensHP = LensHaloParticles<ParticleType<float> >;
-
 int main(int arg,char **argv){
   
   COSMOLOGY cosmo(CosmoParamSet::Planck1yr);
@@ -124,7 +121,7 @@ int main(int arg,char **argv){
     PixelMap map(center.x,512,crit_range/512);
     
     for(int i=0;i<crit_curve.size();++i)
-      map.AddCurve(crit_curve[i].critical_curve,i);
+      map.AddCurve(crit_curve[i].critcurve,i);// .critical_curve,i);
     
     map.printFITS("!critical.fits");
   }
@@ -172,7 +169,7 @@ int main(int arg,char **argv){
   int Nimages;
   
   Point_2d crit_center = crit_curve[0].critical_center;
-  PixelMap map(crit_center.x,512,crit_range/512);
+  PixelMap map(crit_center.x,512,crit_range/512,PixelMapUnits::surfb);
   
   // source.setIndex(100);
   
