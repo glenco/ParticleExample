@@ -60,8 +60,8 @@ int main(int arg,char **argv){
   //center /= Dl;
   //center *= 0;
  
-  double range = 0.87*PI/180/10; // range of grids in radians
-  Grid grid(&lens,512,center.x,range/2);
+  double range = 30.0 * arcsecTOradians; // range of grids in radians
+  Grid grid(&lens,3*512,center.x,range/2);
 
   // set the redshift of the source plane
   lens.ResetSourcePlane(z_source,false);
@@ -95,8 +95,8 @@ int main(int arg,char **argv){
     PixelMap map(center.x,512*2,1.1*MAX(p2[0]-p1[0],p2[1]-p1[1])/512/2);
     
     for(int i=0;i<crit_curve.size();++i){
-      map.AddCurve(crit_curve[i].caustic_curve_outline, i);
-      //map.AddCurve(critcurve[i].caustic_curve_intersecting, critcurve[i].type+2);
+      //map.AddCurve(crit_curve[i].caustic_curve_outline, i+1);  // this is a outline of the caustic that does not intersect itself
+      map.AddCurve(crit_curve[i].caustic_curve_intersecting,i+1);
     }
     map.printFITS("!caustics.fits");
   }
@@ -121,7 +121,7 @@ int main(int arg,char **argv){
     PixelMap map(center.x,512,crit_range/512);
     
     for(int i=0;i<crit_curve.size();++i)
-      map.AddCurve(crit_curve[i].critcurve,i);// .critical_curve,i);
+      map.AddCurve(crit_curve[i].critcurve,i+1);// .critical_curve,i+1);
     
     map.printFITS("!critical.fits");
   }
@@ -175,23 +175,33 @@ int main(int arg,char **argv){
   
   std::cout << "Mapping source ..." << std::endl;
   
-  /*** there are two different ways to map the images
-   ImageFinding::map_images() will adapt the grid to make the image smooth
-   ImageFinding::map_images_fixedgrid() will use the grid as is without further ray shooting
-   */
-  ImageFinding::map_images(&lens,&source,&grid,&Nimages,imageinfo
-                           ,source.getRadius()
-                           ,source.getRadius()/100,0,ExitCriterion::EachImage,false,true);
+  // The following produces an image of the lensed source using the rays that
+  // were created within the grid and refined when finding the caustics.
   
-  //ImageFinding::map_images_fixedgrid(&source,&grid,&Nimages,imageinfo
-  //,source.getRadius(),true,true);
+  grid.RefreshSurfaceBrightnesses(&source);
+  grid.MapSurfaceBrightness(map);
   
-  //*** add sources images to the plot.
+  map.printFITS("!image_unrefined.fits");
+  
+  // You can make a better image by either initializing the Grid above with a higher resolution (generally recommended).
+  
+  // ImageFinding::map_images_fixedgrid() will find the images and return properties of them in imageinfo.
+
+  ImageFinding::map_images_fixedgrid(&source,&grid,&Nimages,imageinfo
+    ,source.getRadius(),true,true);
+  
+  // ImageFinding::map_images() will do the same thing, but will refine the grid further the resolve the images better.
+  // This will take longer.
+  
+  //ImageFinding::map_images(&lens,&source,&grid,&Nimages,imageinfo
+  //                         ,source.getRadius()
+  //                         ,source.getRadius()/100,0,ExitCriterion::EachImage,false,true);
+
+  
+  // You can also make an image using the imageinfo's
+  map.Clean();
   map.AddImages(imageinfo,Nimages);
-  
   map.printFITS("!image.fits");
-  
-//  params.print_unused();
   
   return 0;
 }
