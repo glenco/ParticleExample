@@ -157,7 +157,8 @@ int main(int arg,char **argv){
   
   PosType zs = 2; //** redshift of source
   //** make a Sersic source, there are a number of other ones that could be used
-  SourceSersic source(23,0.02,0,1,0.5,zs);
+  SourceSersic source(23,0.02,0,1,0.5,zs,23);
+ 
   source.setTheta(y[0]);
   
   /** reset the source plane in the lens from the one given in the
