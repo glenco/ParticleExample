@@ -9,6 +9,7 @@
 #include <mutex>
 
 #include "particle_halo.h"
+#include "gridmap.h"
 
 using namespace std;
 
@@ -33,7 +34,8 @@ int main(int arg,char **argv){
     rotation_vector[0] = PI/2;
     rotation_vector[1] = PI/5;
 
-    LensHaloParticles<ParticleType<float> > halo("particles.dm.txt",SimFileFormat::ascii,zl, Nsmooth, cosmo,
+    LensHaloParticles<ParticleType<float> > halo("particles.dm.txt",SimFileFormat::ascii,zl
+                                                 , Nsmooth, cosmo,
                                                  rotation_vector, true, true,0,5.0);
     
     // insert halos into lens
@@ -60,20 +62,21 @@ int main(int arg,char **argv){
   //center /= Dl;
   //center *= 0;
  
+  std::cout << "making gridmap ... ";
   double range = 30.0 * arcsecTOradians; // range of grids in radians
-  Grid grid(&lens,3*512,center.x,range/2);
+  GridMap gridmap(&lens,3*512,center.x,range/2);
+  std::cout << "done." << std::endl;
 
   // set the redshift of the source plane
   lens.ResetSourcePlane(z_source,false);
   
   // output some maps
-  grid.writeFits(1.0,LensingVariable::KAPPA,"!particles");
-  grid.writeFits(1.0,LensingVariable::INVMAG,"!particles");
+  gridmap.writeFits(LensingVariable::KAPPA,"!particles");
+  gridmap.writeFits(LensingVariable::INVMAG,"!particles");
   
   // find the critical curves
   std::vector<ImageFinding::CriticalCurve> crit_curve;
-  int Ncriticals;
-  ImageFinding::find_crit(&lens,&grid,crit_curve,&Ncriticals,0.01*arcsecTOradians);
+  ImageFinding::find_crit(lens, gridmap,crit_curve);
   
   
   //*** plot caustic curves
@@ -168,41 +171,28 @@ int main(int arg,char **argv){
   
   std::vector<ImageInfo> imageinfo;
   int Nimages;
+
+  std::cout << "Mapping source ..." << std::endl;
   
+  // we could make a PixelMap from the GridMap with  PixelMap map = gridmap.writePixelMap(LensingVariable::SurfBrightness);
+  // but let us re-center the PixelMap on the critical curve
   Point_2d crit_center = crit_curve[0].critical_center;
   PixelMap map(crit_center.x,512,crit_range/512,PixelMapUnits::surfb);
-  
-  // source.setIndex(100);
-  
-  std::cout << "Mapping source ..." << std::endl;
+
   
   // The following produces an image of the lensed source using the rays that
   // were created within the grid and refined when finding the caustics.
   
-  grid.RefreshSurfaceBrightnesses(&source);
-  grid.MapSurfaceBrightness(map);
+  gridmap.RefreshSurfaceBrightnesses(&source);
+  map.AddGridMapBrightness(gridmap);
+  
+  // You can add a source directly to the PixelMap without lensing with
+  
+  source.setTheta(crit_center);
+  map.AddSource(source);
   
   map.printFITS("!image_unrefined.fits");
   
-  // You can make a better image by either initializing the Grid above with a higher resolution (generally recommended).
-  
-  // ImageFinding::map_images_fixedgrid() will find the images and return properties of them in imageinfo.
-
-  ImageFinding::map_images_fixedgrid(&source,&grid,&Nimages,imageinfo
-    ,source.getRadius(),true,true);
-  
-  // ImageFinding::map_images() will do the same thing, but will refine the grid further the resolve the images better.
-  // This will take longer.
-  
-  //ImageFinding::map_images(&lens,&source,&grid,&Nimages,imageinfo
-  //                         ,source.getRadius()
-  //                         ,source.getRadius()/100,0,ExitCriterion::EachImage,false,true);
-
-  
-  // You can also make an image using the imageinfo's
-  map.Clean();
-  map.AddImages(imageinfo,Nimages);
-  map.printFITS("!image.fits");
   
   return 0;
 }
