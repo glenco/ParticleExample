@@ -34,9 +34,17 @@ int main(int arg,char **argv){
     rotation_vector[0] = PI/2;
     rotation_vector[1] = PI/5;
 
-    LensHaloParticles<ParticleType<float> > halo("particles.dm.txt",SimFileFormat::ascii,zl
-                                                 , Nsmooth, cosmo,
-                                                 rotation_vector, true, true,0,5.0);
+    LensHaloParticles<ParticleType<float> > halo("particles.dm.txt"
+                                                 ,SimFileFormat::ascii
+                                                 ,zl
+                                                 ,Nsmooth
+                                                 ,cosmo
+                                                 ,rotation_vector
+                                                 ,true
+                                                 ,true
+                                                 ,0);
+    
+    //center = halo.CenterOfMass();
     
     // insert halos into lens
      // this is moved instead of inserted to avoid a copy
@@ -58,21 +66,19 @@ int main(int arg,char **argv){
   //  lens.getMainHalo<LensHP>(i)->rotate(theta);
   //}
   
-  //PosType Dl = cosmo.angDist(zl);
-  //center /= Dl;
-  //center *= 0;
+  center /= cosmo.angDist(zl);
  
   std::cout << "making gridmap ... ";
   double range = 30.0 * arcsecTOradians; // range of grids in radians
-  GridMap gridmap(&lens,3*512,center.x,range/2);
+  GridMap gridmap(&lens,512,center.x,range/2);
   std::cout << "done." << std::endl;
 
   // set the redshift of the source plane
   lens.ResetSourcePlane(z_source,false);
   
   // output some maps
-  gridmap.writeFits(LensingVariable::KAPPA,"!particles");
-  gridmap.writeFits(LensingVariable::INVMAG,"!particles");
+  gridmap.writeFits(LensingVariable::KAPPA,"!particles_kappa.fits");
+  gridmap.writeFits(LensingVariable::INVMAG,"!particles_invmag.fits");
   
   // find the critical curves
   std::vector<ImageFinding::CriticalCurve> crit_curve;
