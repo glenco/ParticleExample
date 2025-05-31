@@ -1,0 +1,245 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cmake -- configure debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_CERF=ON",
+                "-DENABLE_EIGEN=ON",
+                "-DENABLE_GSL=ON",
+                "..",
+                "-G Ninja"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Configures the project in debug mode."
+        },
+        {
+            "label": "cmake -- configure release",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DENABLE_CERF=ON",
+                "-DENABLE_EIGEN=ON",
+                "-DENABLE_GSL=ON",
+                "..",
+                "-G Ninja"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "options": {
+                "cwd": "/Users/bmetcalf/Projects/ParticleExample/build"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Configures the project in release mode."
+        },
+        {
+            "label": "make -- build",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "-j20"
+            ],
+            "group": "build",
+            "options": {
+                "cwd": "/Users/bmetcalf/Projects/ParticleExample/build"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Builds the project."
+        },
+        {
+            "label": "ninja -- build",
+            "type": "shell",
+            "command": "ninja",
+            "args": [
+                "-j20"
+            ],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Builds the project."
+        },
+        {
+            "label": "cmake -- configure debug and build",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "cmake -- configure debug",
+                "ninja -- build"
+            ],
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Runs configure debug and build tasks sequentially!"
+        },
+        {
+            "label": "cmake -- configure release and build",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "cmake -- configure release",
+                "ninja -- build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Runs configure and build tasks sequentially!"
+        },
+        {
+            "label": "Glamer cmake -- configure debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_CERF=ON",
+                "-DENABLE_EIGEN=ON",
+                "-DENABLE_GSL=ON",
+                "-DN_THREADS=20",
+                "..",
+                "-G Ninja"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "options": {
+                "cwd": "/Users/bmetcalf/WorkSpace/build"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Configures the project in debug mode."
+        },
+        {
+            "label": "Glamer cmake -- configure release",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DENABLE_CERF=ON",
+                "-DENABLE_EIGEN=ON",
+                "-DENABLE_GSL=ON",
+                "-DN_THREADS=20",
+                "..",
+                "-G Ninja"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "options": {
+                "cwd": "/Users/bmetcalf/WorkSpace/build"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Configures the project in release mode."
+        },
+        {
+            "label": "Glamer ninja -- build",
+            "type": "shell",
+            "command": "ninja",
+            "args": [
+                "-j20"
+            ],
+            "group": "build",
+            "options": {
+                "cwd": "/Users/bmetcalf/WorkSpace/build"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Builds the project."
+        },
+        {
+            "label": "Glamer cmake -- configure debug and build",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Glamer cmake -- configure debug",
+                "Glamer ninja -- build"
+            ],
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Runs configure debug and build tasks sequentially!"
+        },
+        {
+            "label": "Glamer cmake -- configure release and build",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Glamer cmake -- configure release",
+                "Glamer ninja -- build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Runs configure and build tasks sequentially!"
+        },
+        {
+            "label": "Build All -- release",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Glamer cmake -- configure release",
+                "Glamer ninja -- build",
+                "cmake -- configure release",
+                "ninja -- build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Runs configure and build both Glamer and project."
+        },
+        {
+            "label": "Build All -- debug",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Glamer cmake -- configure debug",
+                "Glamer ninja -- build",
+                "cmake -- configure debug",
+                "ninja -- build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Runs configure and build both Glamer and project."
+        }
+    ]
+}

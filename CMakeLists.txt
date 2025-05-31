@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0...3.8)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ####
@@ -11,6 +11,16 @@ project(TestParicles)
 
 set(sample_VERSION_MAJOR 1)
 set(sample_VERSION_MINOR 0)
+
+
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+	message(STATUS "Debug build")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+endif()
+if(CMAKE_BUILD_TYPE MATCHES Release)
+	message(STATUS "Release build")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Os -DNDEBUG")
+endif()
 
 ####
 # headers
