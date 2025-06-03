@@ -9,12 +9,36 @@
 #include <mutex>
 
 #include "particle_halo.h"
+#include "point.h"
 #include "gridmap.h"
+#include "oTreeNB.h"
 
 using namespace std;
 
 int main(int arg,char **argv){
   
+  { // tests of octent tree
+    Utilities::RandomNumbers_NR ran(-28976391);
+    unsigned long nparticles = 100;
+    PosType boundary_p1[3] = {-1000,-1000,-1000};
+    PosType boundary_p2[3] = {1000,1000,1000};
+    //std::vector<double> xp(3*nparticles);
+    std::vector<Point_3d<double> > xp(nparticles);
+    for(auto &p : xp){
+      p[0] = ran()*2000 -1000;
+      p[1] = ran()*1000 -1000;
+      p[2] = ran()*200;
+    }
+
+    OTreeNB<Point_3d<double> > tree(xp.data(),xp.size());
+    tree.build(10);
+    tree.calcMoments_point(1);
+
+    std::cout << " Total Number of branches " << tree.size() << std::endl;
+    std::cout << " Depth " << tree.getDepth() << std::endl;
+    exit(0);
+  }
+
   COSMOLOGY cosmo(CosmoParamSet::Planck1yr);
   Point_2d rotation_vector(0,0);
   PosType zl=0.4;           // redshift of lens
@@ -44,6 +68,7 @@ int main(int arg,char **argv){
                                                  ,true
                                                  ,0);
     
+                                                 
     //center = halo.CenterOfMass();
     
     // insert halos into lens
