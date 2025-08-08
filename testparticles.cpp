@@ -9,6 +9,7 @@
 #include <mutex>
 
 #include "particle_halo.h"
+#include "particle_halo2.h"
 #include "point.h"
 #include "gridmap.h"
 #include "oTreeNB.h"
@@ -17,7 +18,22 @@ using namespace std;
 
 int main(int arg,char **argv){
   
-  { // tests of octent tree
+  COSMOLOGY cosmo(CosmoParamSet::Planck1yr);
+  Point_3d<float> xo(0,0,0); // center of excised region in comoving Mpc/h
+ /** auto lenshalos = LensHaloParticles<float>::MakeLensHaloParticle(
+    "../ClusterCaustics/DataFiles/snap_058"
+    ,SimFileFormat::gadget2
+    ,0.    /// inv_area
+    ,cosmo 
+    ,5.    /// Nsmooth
+    ,8     /// number of buckets in tree
+    ,0.1   /// opening angle for tree
+    ,0     /// rmax for excision
+    ,xo    /// center of excised region in comoving Mpc/h
+    ,true  /// verbose 
+  );
+  */
+  { // tests
     Utilities::RandomNumbers_NR ran(-28976391);
     unsigned long nparticles = 100;
     PosType boundary_p1[3] = {-1000,-1000,-1000};
@@ -32,45 +48,131 @@ int main(int arg,char **argv){
 
     OTreeNB<Point_3d<double> > tree(xp.data(),xp.size());
     tree.build(10);
-    tree.calcMoments_point(1);
 
-    std::cout << " Total Number of branches " << tree.size() << std::endl;
+    Point_2d ray(0,0);
+    double alpha[2],kappa,gamma[3],phi;
+    alpha[0] = alpha[1] = 0.0;
+    gamma[0] = gamma[1] = gamma[2] = 0.0;
+    kappa = phi = 0.0;
+    tree.force2D(  
+      ray.x // ray direction
+      ,1.0e9  // particle mass
+      ,0.  // smooth_factor
+      ,0.1 // theta2
+      ,0. // inv_area
+      ,alpha   // not zeroed
+      ,&kappa // not zeroed
+      ,gamma // not zeroed
+      ,&phi   // not zeroed
+    );
+
+    std::cout << " Total Number of branches " << tree.getTotalBranches() << std::endl;
+    std::cout << " Used branches " << tree.size() << std::endl;
     std::cout << " Depth " << tree.getDepth() << std::endl;
-    exit(0);
-  }
+  
+  }/**/
 
-  COSMOLOGY cosmo(CosmoParamSet::Planck1yr);
+   std::string out_dir = "output4/";
+
+  Utilities::LOGPARAMS log_params(out_dir+"params");
+  
   Point_2d rotation_vector(0,0);
-  PosType zl=0.4;           // redshift of lens
-  PosType z_source = 2.0;           // redshift of lens
-  int Nsmooth = 16; // number of neighbors for smoothing scale
-
-  //LensHaloParticles phalo("particles.dm.txt",zl,Nsmooth,cosmo,rotation_vector, true, true);
+  
+  PosType zl=0.4;                   // redshift of lens
+  log_params("zl",zl);
+  PosType z_source = 2.0;           // redshift of source
+  log_params("z_source",z_source);
+  int Nsmooth = 5; // number of neighbors for smoothing scale
+  log_params("Nsmooth",Nsmooth);
   
   long seed = -28976391;
+  log_params("seed",seed);
   /**********************************************************/
-   
+  
+  Utilities::RandomNumbers_NR random(seed);   //*** random number generator
+ 
+  if(!Utilities::IO::check_directory(out_dir)){
+    std::cout << "Creating directory " << out_dir << std::endl;
+    Utilities::IO::make_directories(out_dir);
+  }
+
   Lens lens(&seed,z_source,cosmo);
 
   Point_3d<double> center;
-  {
-      // rotation of the halo about its center of mass
-    rotation_vector[0] = PI/2;
-    rotation_vector[1] = PI/5;
+  /*{
+   
+    double range = 15.0 * arcsecTOradians; // range of grids in radians
+    std::vector<RAY> rays(5);
+    for(RAY& r : rays){
+      r.x[0] = range * (random() - 0.5);
+      r.x[1] = range * (random() - 0.5);
+      r.z = z_source; // set the source redshift
+    }
+    
+    Utilities::LOGDATA file("theta_test.csv");
+    time_t t = time(nullptr);
 
-    LensHaloParticles<ParticleType<float> > halo("particles.dm.txt"
-                                                 ,SimFileFormat::ascii
-                                                 ,zl
-                                                 ,Nsmooth
-                                                 ,cosmo
-                                                 ,rotation_vector
-                                                 ,true
-                                                 ,true
-                                                 ,0);
+    LensHaloParticles<float> halo("particles.dm.txt"
+                        ,SimFileFormat::ascii
+                        ,zl
+                        ,0. // inverse area
+                        ,3*1.807953375000000000e6 // particle mass
+                        ,cosmo 
+                        ,Nsmooth
+                        ,8  /// number of buckets in tree
+                        ,0.1      /// opening angle for tree
+                        ,true /// re-center on center of mass
+                        );
+
+    Lens lens(&seed,z_source,cosmo);
+    lens.moveinMainHalo(halo, true);
+    std:cout << time(nullptr) - t << " seconds to construct LensHaloParticles" << std::endl;
+    for(float theta = 0 ; theta <= 1 ; theta += 0.01){
+
+      Utilities::LOGDATA::LINE line;
+    
+      //halo.resetForceAngle(theta);
+      line["theta"] = theta;
+
+      // access the main halo and reset the force angle
+      lens.getMainHalo<LensHaloParticles<float> >(0)->resetForceAngle(theta);
+      
+      // this is moved instead of inserted to avoid a copy
+      //center /= cosmo.angDist(zl);
+ 
+      // set the redshift of the source plane
+      lens.ResetSourcePlane(z_source,false);
+      lens.rayshooterInternal(rays.size(),rays.data());
+      
+      int i=0;
+      for(auto &r : rays){
+        line["alpha_x"+std::to_string(i)] = r.alpha()[0];
+        line["alpha_y"+std::to_string(i)] = r.alpha()[1];
+        line["kappa"+std::to_string(i)] = r.kappa();
+        line["gamma1"+std::to_string(i)] = r.gamma1();
+        line["gamma2"+std::to_string(i)] = r.gamma2();
+        line["dt"+std::to_string(i)] = r.dt;
+        ++i;
+      }
+      file.add(line);
+    }
+  }
+exit(0);*/
+  
+    LensHaloParticles<float> halo("particles.dm.txt"
+                        ,SimFileFormat::ascii
+                        ,zl
+                        ,0. // inverse area
+                        ,3*1.807953375000000000e6 // particle mass
+                        ,cosmo 
+                        ,Nsmooth
+                        ,8  /// number of buckets in tree
+                        ,0.1      /// opening angle for tree
+                        ,true /// re-center on center of mass
+                        );/**/
     
                                                  
     //center = halo.CenterOfMass();
-    
     // insert halos into lens
      // this is moved instead of inserted to avoid a copy
     lens.moveinMainHalo(halo, true);
@@ -84,7 +186,7 @@ int main(int arg,char **argv){
 //       lens.insertMainHalo(h,zl, true);
 //    }
 //
-  }
+  
 
   // here you can rotate each simulation independently
   //for(int i=0 ; i < lens.getNMainHalos<LensHP>()  ; ++i){
@@ -102,62 +204,20 @@ int main(int arg,char **argv){
   lens.ResetSourcePlane(z_source,false);
   
   // output some maps
-  gridmap.writeFits<float>(LensingVariable::KAPPA,"!particles_kappa.fits");
-  gridmap.writeFits<float>(LensingVariable::INVMAG,"!particles_invmag.fits");
+  gridmap.writeFits<float>(LensingVariable::KAPPA,out_dir+"particles_kappa.fits");
+  gridmap.writeFits<float>(LensingVariable::INVMAG,out_dir+"particles_invmag.fits");
+  gridmap.writeFits<float>(LensingVariable::ALPHA1,out_dir+"particles_a1.fits");
+  gridmap.writeFits<float>(LensingVariable::ALPHA2,out_dir+"particles_a2.fits");
+  gridmap.writeFits<float>(LensingVariable::GAMMA1,out_dir+"particles_g1.fits");
+  gridmap.writeFits<float>(LensingVariable::GAMMA2,out_dir+"particles_g2.fits");
   
   // find the critical curves
   std::vector<ImageFinding::CriticalCurve> crit_curve;
   ImageFinding::find_crit(lens, gridmap,crit_curve);
   
-  
   //*** plot caustic curves
   if(crit_curve.size() > 0){
-    Point_2d p1,p2;
-    Point_2d tp1,tp2;
-    
-    //*** find good boundaries for plot
-    for(int i=0;i<crit_curve.size();++i){
-      crit_curve[i].CausticRange(tp1,tp2);
-      if(p1[0] > tp1[0]) p1[0] = tp1[0];
-      if(p1[1] > tp1[1]) p1[1] = tp1[1];
-      
-      if(p2[0] < tp2[0]) p2[0] = tp2[0];
-      if(p2[1] < tp2[1]) p2[1] = tp2[1];
-      
-    }
-    Point_2d center = crit_curve[0].caustic_center;
-    PixelMap<float> map(center.x,512*2,1.1*MAX(p2[0]-p1[0],p2[1]-p1[1])/512/2);
-    
-    for(int i=0;i<crit_curve.size();++i){
-      //map.AddCurve(crit_curve[i].caustic_curve_outline, i+1);  // this is a outline of the caustic that does not intersect itself
-      map.AddCurve(crit_curve[i].caustic_curve_intersecting,i+1);
-    }
-    map.printFITS("!caustics.fits");
-  }
-  
-  //*** plot critical curves
-  
-  double crit_range=0;
-  if(crit_curve.size() > 0){
-    Point_2d p1,p2;
-    Point_2d tp1,tp2;
-    for(int i=0;i<crit_curve.size();++i){
-      crit_curve[i].CritRange(tp1,tp2);
-      if(p1[0] > tp1[0]) p1[0] = tp1[0];
-      if(p1[1] > tp1[1]) p1[1] = tp1[1];
-      
-      if(p2[0] < tp2[0]) p2[0] = tp2[0];
-      if(p2[1] < tp2[1]) p2[1] = tp2[1];
-      
-    }
-    Point_2d center = crit_curve[0].critical_center;
-    crit_range = 1.1*MAX(p2[0]-p1[0],p2[1]-p1[1]);
-    PixelMap<float> map(center.x,512,crit_range/512);
-    
-    for(int i=0;i<crit_curve.size();++i)
-      map.AddCurve(crit_curve[i].critcurve,i+1);// .critical_curve,i+1);
-    
-    map.printFITS("!critical.fits");
+    ImageFinding::CriticalCurve::print(out_dir+"particles_crit_curves.csv",crit_curve);
   }
   
   std::cout << "Number of caustics : "<< crit_curve.size() << std::endl;
@@ -184,7 +244,6 @@ int main(int arg,char **argv){
   //****************************************
   
   //*** find a source position within the tangential caustic
-  Utilities::RandomNumbers_NR random(seed);   //*** random number generator
   std::vector<Point_2d> y;                    //*** vector for source positions
   crit_curve[0].RandomSourcesWithinCaustic(1,y,random); //*** get random points within first caustic
 
@@ -204,25 +263,20 @@ int main(int arg,char **argv){
 
   std::cout << "Mapping source ..." << std::endl;
   
-  // we could make a PixelMap<> from the GridMap with  PixelMap<> map = gridmap.writePixelMap(LensingVariable::SurfBrightness);
-  // but let us re-center the PixelMap<> on the critical curve
-  Point_2d crit_center = crit_curve[0].critical_center;
-  PixelMap<float> map(crit_center.x,512,crit_range/512,PixelMapUnits::surfb);
+  // add a source to the source plane
+  gridmap.RefreshSurfaceBrightnesses(&source);
 
+  // make a PixelMap with the image of the lensed source in it
+  PixelMap<float> map = gridmap.getPixelMapFlux<float>();
   
   // The following produces an image of the lensed source using the rays that
   // were created within the grid and refined when finding the caustics.
   
-  gridmap.RefreshSurfaceBrightnesses(&source);
-  map.AddGridMapBrightness(gridmap);
-  
   // You can add a source directly to the PixelMap<> without lensing with
-  
-  source.setTheta(crit_center);
   map.AddSource(source);
   
-  map.printFITS("!image_unrefined.fits");
-  
+  // make a fits image 
+  map.printFITS(out_dir+"!image_unrefined.fits");
   
   return 0;
 }
